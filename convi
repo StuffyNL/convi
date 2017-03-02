@@ -1,0 +1,126 @@
+#!/usr/bin/perl
+# ------------------------------------------------------------------------------
+# 'convi' version: 1.0.1
+# Copyright (c) 2016
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms and conditions of the GNU General Public License,
+# version 2, as published by the Free Software Foundation.
+#
+# This program is distributed in the hope it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# ------------------------------------------------------------------------------
+
+
+# /////////////////////////////////// #
+# //////////////  USE  ////////////// #
+# /////////////////////////////////// #
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Term::ANSIColor qw(:constants);
+use File::Path;
+use File::Basename;
+
+# /////////////////////////////////// #
+# ///////// Own SUBS //////////////// #
+# /////////////////////////////////// #
+
+sub read_files {
+  my $path = shift; my $rcrs = shift; my @fndfiles;
+  opendir(DIR, $path) or die $!; my @files = map { $path . '/' . $_ } grep { !/^\.{1,2}$/ } readdir (DIR); closedir(DIR);
+  foreach my $file (@files) { if(-d "$file") { if($rcrs eq 1) { push @files, read_files($file, $rcrs); } } else { push @fndfiles, $file; } }
+  return @fndfiles;
+  }
+
+sub filter_files {
+  my ($ext) = shift; my @file  = @_; my @exts  = split(',', $ext); my @ret;
+  for (@file) { my $f = $_; foreach my $v (@exts) { my $e = ($f =~ m/([^.]+)$/)[0]; $e = lc $e; if($e eq $v) { push @ret, $f; } } }
+  return @ret;
+  }
+
+sub MyExec {
+  my ($exe) = shift; my ($dbg) = shift; if($dbg eq 1) { MyPrint("\nExecute : ", 1); print qq($exe \n); } else { qx($exe); }
+  }
+
+sub MyPrint {
+  my ($txt)  = shift; my ($bld)  = shift; if($bld eq 1) { print BOLD, $txt, RESET; } else { print($txt); }
+  }
+
+# /////////////////////////////////// #
+# ///////// Used Vars /////////////// #
+# /////////////////////////////////// #
+
+my $dir   = '.';   my $ext   = '';   my $hlp   = 0;     my $del   = 0;   my @files = ('');  my $debug = 0;    my $rcrsv = 0;
+
+my $result  = GetOptions ("ext|e=s" => \$ext, "help|h"  => \$hlp, "delete|d"    => \$del,  "test|t"  => \$debug, "recursive|r" => \$rcrsv);
+
+if ($hlp eq 1) {
+  MyPrint("Usage: ", 1);
+  MyPrint("\n", 0);
+  MyPrint("\n-t Test / Debug mode. Only the commands are printed, nothing will be executed.\n-r Read al the Dir's recursive\n\n", 0);
+  exit;
+  };
+
+if ($ext =~ /\Q,\E/) {
+  my @a = split(',', $ext);
+  MyPrint("Searching for files with extention : ", 1);
+  foreach my $v (@a) { MyPrint("$v ", 0); }
+  }
+
+# /////////////////////////////////// #
+# ///////// Get files /////////////// #
+# /////////////////////////////////// #
+
+my @fsa   = read_files($dir, $rcrsv);
+if ($debug eq 1) {
+  MyPrint("\n\nFiles found in directory :\n\n", 1);
+  foreach my $r (@fsa) { MyPrint($r."\n", 0); }
+  }
+
+@files = filter_files($ext, @fsa);
+MyPrint("\n\nFiles found for processing :\n\n", 1);
+foreach my $r (@files) { MyPrint($r."\n", 0); }
+
+
+# /////////////////////////////////// #
+# //////////// ROUTINE ////////////// #
+# /////////////////////////////////// #
+
+my $file_cnt = 0;
+
+  
+MyPrint("\n\nStarting converting...  \n", 1);
+
+foreach my $file (@files) {
+
+  my $fext = ($file =~ m/([^.]+)$/)[0]; $fext = lc $fext;
+  my $nwfile;
+  
+  if ($fext eq 'bmp')  { ($nwfile = $file) =~ s/\.[bB][mM][pP]$//;	};
+  if ($fext eq 'gif')  { ($nwfile = $file) =~ s/\.[gG][iI][fF]$//;	};
+  if ($fext eq 'png')  { ($nwfile = $file) =~ s/\.[pP][nN][gG]$//;	};
+  if ($fext eq 'tif')  { ($nwfile = $file) =~ s/\.[tT][iI][fF]$//;	};
+  if ($fext eq 'jpeg') { ($nwfile = $file) =~ s/\.[jJ][pP][eE][gG]$//;	};
+  #if ($fext eq '') { ($nwfile = $file) =~ s/\.[][][]$//;	};
+  
+  my $jpgfile = $nwfile.".jpg";
+  $jpgfile =~ s/([& ()`\[\];\'\"\$])/\\$1/g;
+  $file =~ s/([& ()`\[\];\'\"\$])/\\$1/g;
+
+  if($fext eq 'jpeg') { MyExec("mv ".$file." ".$jpgfile, $debug); }
+  else { MyExec("convert ".$file." ".$jpgfile, $debug); }
+  
+  $file_cnt++;
+  }
+MyPrint("\n\nFiles converted : $file_cnt \n",0);
+
